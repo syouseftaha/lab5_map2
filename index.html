@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Lab 5 - Map 2</title>
+
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.4/dist/leaflet.css"
+        integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA=="
+        crossorigin=""/>
+
+        <script src="https://unpkg.com/leaflet@1.3.4/dist/leaflet.js"
+        integrity="sha512-nMMmRyTVoLYqjP9hrbed9S+FzjZHW5gY1TWCHA5ckwXZBadntCNs8kEqAWdrb9O7rxbCaA4lKTIWjDXZxflOcA=="
+        crossorigin=""></script>
+
+        <script type="text/javascript" src="chicago.js"></script>
+
+        <style type="text/css">
+            /* Style of the Legend: adjust the values below to change the appearance of the legend pane*/
+            .legend {
+                padding: 6px 8px;
+                line-height: 18px;
+                background: rgba(255,255,255,0.9);
+                box-shadow: 0 0 15px rgba(0,0,0,0.2);
+                border-radius: 5px;
+            }
+
+            /* Adjust the values below to change the appearance of the legend color boxes */
+            .legend i {
+                width: 18px;
+                height: 18px;
+                float: left;
+                margin-right: 8px;
+                opacity: 0.7;
+            }
+        </style>
+
+        <!-- Load c3.css -->
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.6.8/c3.css" rel="stylesheet">
+
+        <!-- Load d3.js and c3.js -->
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.6.8/c3.min.js"></script>
+
+    </head>
+
+    <body>
+        <div id="map" style="height: 800px"></div>
+
+        <div id="chart"></div>
+
+        <script type="text/javascript">
+
+            var map = L.map('map', {
+              center: [41.83,-87.63],
+              zoom: 11
+            });
+
+            L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+                attribution: 'Map data © OpenStreetMap contributors, CC-BY-SA, Imagery © Mapbox',
+                maxZoom: 13,
+                minZoom: 8,
+                id: 'mapbox.light',
+                accessToken: 'pk.eyJ1Ijoic3lvdXNlZnRhaGEiLCJhIjoiY2ptMDE1MXpoMjAxMzNwbGk4NTFxaDB3NiJ9.cAi60Yb9geTVWj6fVGjf0A'
+            }).addTo(map);
+
+            function getColor(value) {
+                return value > 96953  ? '#006d2c':
+                       value > 70221  ? '#31a354':
+                       value > 49448  ? '#74c476':
+                       value > 32312  ? '#bae4b3':
+                                        '#edf8e9';
+            }
+
+            function style(feature){
+                return {
+                    fillColor: getColor(feature.properties.med_income),   // pop_den is the field name for the population density data
+                    weight: 2,
+                    opacity: 1,
+                    color: 'gray',
+                    fillOpacity: 0.9
+                };
+            }
+
+            function makeChart(props) {
+            // props is just a variable, which will be replaced with the layer's properties
+            // when using the function
+                c3.generate({
+
+                    bindto: '#chart',  // id of the chart div, as defined earlier
+
+                    size: {  // size (height and width) of the chart, by pixels
+                        height: 180,
+                        width: 180
+                    },
+
+                    title:{
+                        text: props.NAME  // Use the NAME attribute as chart title
+                                          // This is displayed above the chart
+                                          // You may use other strings, HTML elements or combined
+                    },
+
+                    data: {
+                        // Define the actual data
+                        // I use the attribute values as data for making the charts
+                        // The strings are labels of the charts (shown in legend)
+                        columns: [
+                            ['White', props.white],
+                            ['Black', props.black],
+                            ['Asian', props.asian],
+                            ['Mixed', props.mixed],
+                            ['Other', props.other]
+                        ],
+
+                        type: 'bar',  // chart type
+                    },
+
+                    color:{ // colors of donut segments, same order as the data
+                        pattern:["#EC7063", "#5DADE2","#27AE60","#F4D03F","#E67E22"]
+                    }
+                });
+            }
+
+            function highlightFeature(e) {
+                var layer = e.target;
+
+                makeChart(layer.feature.properties);
+
+                // You can adjust the values below to change the highlighting styles of features on mouseover
+                layer.setStyle({
+                    weight: 5,
+                    color: '#666',
+                    dashArray: '6', // defines the stroke dash pattern; check out the link for more: https://goo.gl/AWl5sC
+                    fillOpacity: 0.7
+                });
+
+                // Fix display layer problems with IE and Opera (no need to change anything)
+                if (!L.Browser.ie && !L.Browser.opera) {
+                    layer.bringToFront();
+                }
+            }
+
+            var geojson;
+
+            function resetHighlight(e) {
+                geojson.resetStyle(e.target);
+
+            }
+
+            // Combine the mouseover and mouseout actions (defined above)
+            function onEachFeature(feature, layer) {
+                layer.on({
+                    mouseover: highlightFeature,
+                    mouseout: resetHighlight,
+                });
+            }
+
+            var tooltip = document.getElementById("chart");
+
+            geojson = L.geoJson(data, {
+                style:style,
+                onEachFeature: onEachFeature
+              }).bindTooltip(tooltip).addTo(map);
+
+            var legend = L.control({position: 'bottomright'}); // Try the other three corners if you like.
+
+            legend.onAdd = function (map) {
+
+                var div = L.DomUtil.create('div', 'legend'),
+                    grades = [0, 32312, 49448, 70221, 96953]; // The break values to define the intervals of population, note we begin from 0 here
+
+                div.innerHTML = '<b>Median Income <br> 2014 <br></b>'; // The legend title (HTML-based), in this case it's Population Density 2011
+
+                // Loop through our the classes and generate a label with a color box for each interval.
+                // If you are creating a choropleth map, you DO NOT need to change lines below.
+                for (var i = 0; i < grades.length; i++) {
+                    div.innerHTML +=
+                    '<i style="background:' + getColor(grades[i] + 1) + '"></i>' +
+                    grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+                }
+
+                return div;
+            };
+
+            legend.addTo(map);
+
+        </script>
+   </body>
+</html>
